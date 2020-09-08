@@ -10,7 +10,26 @@ from typing import Optional
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
 
-app = FastAPI()
+tags_metadata = [
+    {
+        "name": "list tasks",
+        "description": "List tasks and filter by done parameter.",
+    },
+    {
+        "name": "add task",
+        "description": "Add task to the db",
+    },
+    {
+        "name": "remove task",
+        "description": "Remove task from db",
+    },
+    {
+        "name": "update task",
+        "description": "Update task from db",
+    },
+]
+
+app = FastAPI(title = "Megadados-api", openapi_tags = tags_metadata)
 
 def _list_tasks_logic(done: int):
     tasks = {}
@@ -39,16 +58,29 @@ class Task(BaseModel):
 def read_root():
     return {"Hello" : "World"}
 
-@app.get("/list/")
+@app.get("/list/", tags = ["list tasks"], response_model = dict)
 def list_tasks():
     return db
 
-@app.get("/list/{status}")
-def list_tasks_filter(status: int):
-    return _list_tasks_logic(status)
+@app.get("/list/{done}", tags = ["list tasks"], response_model = dict)
+def list_tasks_filter(done: int):
+    """
+    Create an item with all the information:
 
-@app.post("/add-task/", response_model = Task)
+    - **done**: if the task is done
+    """
+    return _list_tasks_logic(done)
+
+@app.post("/add-task/", response_model = Task, tags = ["add task"])
 def add_task(task: Task):
+    """
+    Create an item with all the information:
+
+    - **name**: each tasks must have a name
+    - **description**: a long description about the task
+    - **done**: if the task is done
+    """
+
     name_idx = _db_has_name(task.name)
     if name_idx != None: return JSONResponse(status_code = 400, content = {"message" : "name already exists"})
 
@@ -56,8 +88,13 @@ def add_task(task: Task):
     _write_json()
     return task
 
-@app.delete("/remove-task/{name}", response_model = str)
+@app.delete("/remove-task/{name}", response_model = str, tags = ["remove task"])
 def remove_task(name: str):
+    """
+    Create an item with all the information:
+
+    - **name**: each tasks must have a name
+    """
     name_idx = _db_has_name(name)
     if name_idx == None: return JSONResponse(status_code = 400, content = {"message" : "name doesn't exists"})
 
@@ -66,8 +103,16 @@ def remove_task(name: str):
     _write_json()
     return name
 
-@app.put("/update-task/", response_model = Task)
+@app.put("/update-task/", response_model = Task, tags = ["update task"])
 def update_task(task: Task):
+    """
+    Create an item with all the information:
+
+    - **name**: each tasks must have a name
+    - **description**: a long description about the task
+    - **done**: if the task is done
+    """
+
     name_idx = _db_has_name(task.name)
     if name_idx == None: return JSONResponse(status_code = 400, content = {"message" : "name doesn't exists"})
     
