@@ -1,121 +1,139 @@
-# mock
-import json
-from fastapi.encoders import jsonable_encoder
+# pylint: disable=missing-module-docstring, missing-function-docstring, missing-class-docstring
+import uuid
 
-with open('mock.json', 'r') as f: db = json.load(f)
-#
+from typing import Optional, Dict
 
-from typing import Optional
-from fastapi import FastAPI, Query, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+
+# pylint: disable=too-few-public-methods
+class Task(BaseModel):
+    description: Optional[str] = Field(
+        'no description',
+        title='Task description',
+        max_length=1024,
+    )
+    completed: Optional[bool] = Field(
+        False,
+        title='Shows whether the task was completed',
+    )
+
+    class Config:
+        schema_extra = {
+            'example': {
+                'description': 'Buy baby diapers',
+                'completed': False,
+            }
+        }
+
 
 tags_metadata = [
     {
-        "name": "Tasks",
-        "description": "Tasks related features.",
-    }
+        'name': 'task',
+        'description': 'Operations related to tasks.',
+    },
 ]
 
-app = FastAPI(title = "Megadados-api", openapi_tags = tags_metadata, description="FIrst touch with FastApi")
+app = FastAPI(
+    title='Task list',
+    description='Task-list project for the **Megadados** course',
+    openapi_tags=tags_metadata,
+)
 
-def _list_tasks_logic(done: int):
-    tasks = {}
+tasks = {}
 
-    for task in db["tasks"]: 
-        if task["done"] == done: tasks[len(tasks)] = task
 
-    return tasks
+@app.get(
+    '/task',
+    tags=['task'],
+    summary='Reads task list',
+    description='Reads the whole task list.',
+    response_model=Dict[uuid.UUID, Task],
+)
+async def read_tasks(completed: bool = None):
+    if completed is None:
+        return tasks
+    return {
+        uuid_: item
+        for uuid_, item in tasks.items() if item.completed == completed
+    }
 
-def _write_json():
-    with open('mock.json', 'w') as f: json.dump(db, f)
 
-def _db_has_name(name: str):
-    for idx in range(len(db["tasks"])):
-        print(db["tasks"][idx])
-        if db["tasks"][idx]["name"] == name: return idx
-    
-    return
+@app.post(
+    '/task',
+    tags=['task'],
+    summary='Creates a new task',
+    description='Creates a new task and returns its UUID.',
+    response_model=uuid.UUID,
+)
+async def create_task(item: Task):
+    uuid_ = uuid.uuid4()
+    tasks[uuid_] = item
+    return uuid_
 
-class Task(BaseModel):
-    name: str
-    description: Optional[str] = None
-    done: Optional[int] = None
 
-@app.get("/")
-def read_root():
-    return {"Hello" : "World"}
+@app.get(
+    '/task/{uuid_}',
+    tags=['task'],
+    summary='Reads task',
+    description='Reads task from UUID.',
+    response_model=Task,
+)
+async def read_task(uuid_: uuid.UUID):
+    try:
+        return tasks[uuid_]
+    except KeyError as exception:
+        raise HTTPException(
+            status_code=404,
+            detail='Task not found',
+        ) from exception
 
-@app.get("/list/", tags = ["Tasks"], response_model = dict, summary = 'List all tasks.')
-def list_tasks():
-    """
-    List all existent tasks and their information.
-    """
-    return db
 
-@app.get("/list/{done}", tags = ["Tasks"], response_model = dict, summary = 'List tasks based on status.')
-def list_tasks_filter(done: bool):
-    """
-    List tasks based on information "done":
-    - **done**: if the task is done
-     - true: done tasks.
-     - false: not done tasks.
-    """
-    return _list_tasks_logic(done)
+@app.put(
+    '/task/{uuid_}',
+    tags=['task'],
+    summary='Replaces a task',
+    description='Replaces a task identified by its UUID.',
+)
+async def replace_task(uuid_: uuid.UUID, item: Task):
+    try:
+        tasks[uuid_] = item
+    except KeyError as exception:
+        raise HTTPException(
+            status_code=404,
+            detail='Task not found',
+        ) from exception
 
-@app.post("/add-task/", response_model = Task, tags = ["Tasks"], summary = 'Add a new task.')
-def add_task(task: Task):
-    """
-    Create an item with all the information:
 
-    - **name**: each tasks must have a name
-    - **description**: a long description about the task
-    - **done**: if the task is done
-    """
-    name_idx = _db_has_name(task.name)
-    if name_idx != None: 
-        raise HTTPException(status_code = 400, detail = {"message" : "name already exists"})
+@app.patch(
+    '/task/{uuid_}',
+    tags=['task'],
+    summary='Alters task',
+    description='Alters a task identified by its UUID',
+)
+async def alter_task(uuid_: uuid.UUID, item: Task):
+    try:
+        update_data = item.dict(exclude_unset=True)
+        tasks[uuid_] = tasks[uuid_].copy(update=update_data)
+    except KeyError as exception:
+        raise HTTPException(
+            status_code=404,
+            detail='Task not found',
+        ) from exception
 
-    db["tasks"].append(jsonable_encoder(task))
-    _write_json()
-    return task
 
-@app.delete("/remove-task/{name}", response_model = str, tags = ["Tasks"], summary = 'Delete a task.')
-def remove_task(name: str):
-    """
-    Delete a task based on information "name":
-
-    - **name**: each tasks must have a name
-    """
-    name_idx = _db_has_name(name)
-    if name_idx == None: 
-        raise HTTPException(status_code = 400, detail = {"message" : "name doesn't exists"})
-    else:
-        del db["tasks"][name_idx]
-    _write_json()
-    return name
-
-@app.put("/update-task/", response_model = Task, tags = ["Tasks"], summary = 'Update an information from task.')
-def update_task(task: Task):
-    """
-    Update an information ("description" or "done") from a task given its name:
-
-    - **name**: each tasks must have a name (specify the name of the task you want to update)
-
-    You can choose which informations you want to update, exclude the ones you don't:
-
-    - **description**: a long description about the task
-    - **done**: if the task is done
-    """
-
-    name_idx = _db_has_name(task.name)
-    if name_idx == None: 
-        raise HTTPException(status_code = 400, detail = {"message" : "name doesn't exists"})
-    
-    stored_item_data = db["tasks"][name_idx]
-    stored_item_model = Task(**stored_item_data)
-    update_data = task.dict(exclude_unset = True)
-    updated_item = stored_item_model.copy(update = update_data)
-    db["tasks"][name_idx] = jsonable_encoder(updated_item)
-
-    _write_json()
-    return db["tasks"][name_idx]
+@app.delete(
+    '/task/{uuid_}',
+    tags=['task'],
+    summary='Deletes task',
+    description='Deletes a task identified by its UUID',
+)
+async def remove_task(uuid_: uuid.UUID):
+    try:
+        del tasks[uuid_]
+    except KeyError as exception:
+        raise HTTPException(
+            status_code=404,
+            detail='Task not found',
+        ) from exception
