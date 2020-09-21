@@ -65,31 +65,31 @@ def test_read_task_uuid():
     _assert(response = client.get('/task/00000000-0000-0000-0000-000000000000'), status_code = 404, expected_body = responses['task_not_found'])
 
     #Found uuid
-    uuid = client.post("/task", json=responses['example_task']).json()
-    _assert(response = client.get('/task/' + uuid), status_code = 200)
+    _uuid = client.post("/task", json=responses['example_task']).json()
+    _assert(response = client.get('/task/' + _uuid), status_code = 200)
 
 #Put update task
 def test_replace_task_non_uuid():
     _assert(response = client.put('/task/a', json=responses['example_task']), status_code = 422, expected_body = responses['invalid_uuid'])
 
 def test_replace_task_uuid():
-    uuid = client.post("/task", json=responses['example_task']).json()
-    _assert(response = client.put('/task/'+ uuid, json=responses['task_new']), status_code = 200)
+    _uuid = client.post("/task", json=responses['example_task']).json()
+    _assert(response = client.put('/task/'+ _uuid, json=responses['task_new']), status_code = 200)
 
     #Check if task replaced
-    _assert(response = client.get('/task/'+ uuid), status_code = 200, expected_body = responses["task_new"])
+    _assert(response = client.get('/task/'+ _uuid), status_code = 200, expected_body = responses["task_new"])
 
 #Delete task
 def test_delete_task_non_uuid():
     _assert(response = client.delete("/task/a"), status_code = 422, expected_body = responses['invalid_uuid'])
 
 def test_delete_task_uuid():
-    uuid = client.post("/task", json=responses['example_task']).json()
+    _uuid = client.post("/task", json=responses['example_task']).json()
 
     #Task exists
-    _assert(response = client.delete('/task/'+ uuid), status_code = 200)
+    _assert(response = client.delete('/task/'+ _uuid), status_code = 200)
     #Check if task was deleted
-    _assert(response = client.get('/task/'+ uuid), status_code = 404, expected_body = responses["task_not_found"])
+    _assert(response = client.get('/task/'+ _uuid), status_code = 404, expected_body = responses["task_not_found"])
 
     #Task not found
     _assert(response = client.delete('/task/00000000-0000-0000-0000-000000000000'), status_code = 404, expected_body = responses["task_not_found"])
@@ -99,13 +99,13 @@ def test_patch_task_non_uuid():
     _assert(response = client.patch("/task/a", json=responses["example_task"]), status_code = 422, expected_body = responses["invalid_uuid"])
 
 def test_patch_task_uuid():
-    uuid = client.post("/task", json=responses['example_task']).json()
+    _uuid = client.post("/task", json=responses['example_task']).json()
 
     #Task exists
-    _assert(response = client.patch('/task/'+ uuid, json=responses['task_new']), status_code = 200)
+    _assert(response = client.patch('/task/'+ _uuid, json=responses['task_new']), status_code = 200)
 
     #Check if task was updated
-    _assert(response = client.get('/task/'+ uuid), expected_body = responses["task_new"])
+    _assert(response = client.get('/task/'+ _uuid), expected_body = responses["task_new"])
 
     #Task not found
     _assert(response = client.patch('/task/00000000-0000-0000-0000-000000000000', json=responses["example_task"]), status_code = 404, expected_body = responses["task_not_found"])
