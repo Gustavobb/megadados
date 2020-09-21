@@ -3,118 +3,109 @@ from main import app
 
 client = TestClient(app)
 
+responses = {
+    "bool_error": {"detail":[{"loc":["query","completed"],"msg":"value could not be parsed to a boolean","type":"type_error.bool"}]},
+    "bool_error_2": {'detail': [{'loc': ['body', 'item', 'completed'], 'msg': 'value could not be parsed to a boolean', 'type': 'type_error.bool'}]},
+    "not_found": {'detail': 'Not Found'},
+    "task_not_found": {'detail': 'Task not found'}, 
+    "invalid_uuid": {"detail":[{"loc":["path","uuid_"],"msg":"value is not a valid uuid","type":"type_error.uuid"}]},
+    "example_task": {"description": "test","completed": True},
+    "example_task2": {"description": "test","completed": False},
+    "task_new": {"description": "testnew", "completed": True},
+    "example_task_invalid": {"description": "test","completed": "a"},
+    "example_task_empty": {"description": "no description","completed": False}
+}
+
+def _assert(response, status_code = None, expected_body = None):
+    if status_code != None: assert response.status_code == status_code
+    if expected_body != None: assert response.json() == expected_body
+
 #Get /
 def test_read_main_returns_not_found():
-    response = client.get('/')
-    assert response.status_code == 404
-    assert response.json() == {'detail': 'Not Found'}
+    _assert(response = client.get('/'), status_code = 404, expected_body = responses['not_found'])
 
 #Get tasks bool
 def test_read_non_bool_task():
-    response = client.get('/task?completed=a') #Not boolean on a boolean query string
-    assert response.status_code == 422
-    assert response.json() == {"detail":[{"loc":["query","completed"],"msg":"value could not be parsed to a boolean","type":"type_error.bool"}]}
+    _assert(response = client.get('/task?completed=a'), status_code = 422, expected_body = responses['bool_error'])
 
 def test_read_bool_task():
-    assert client.get('/task?completed=True').status_code == 200
-    assert client.get('/task?completed=False').status_code == 200
-
+    _assert(status_code = 200, response = client.get('/task?completed=True'))
+    _assert(status_code = 200, response = client.get('/task?completed=False'))
 
 #Post tasks bool
+def test_write_non_task():
+    _assert(response = client.post("/task", json=responses['example_task_invalid']), status_code = 422, expected_body = responses['bool_error_2'])
+
 def test_write_task():
-    response = client.post(
-        "/task",
-        json={"description": "test",
-        "completed": "a"},
-    )
+    #Task
+    resp = client.post("/task", json=responses['example_task'])
+    _assert(response = resp, status_code = 200)
+    #Check if task created
+    _assert(response = client.get('/task/'+ resp.json()), status_code = 200, expected_body = responses['example_task'])
 
-    assert response.status_code == 422
-    assert response.json() == {'detail': [{'loc': ['body', 'item', 'completed'], 'msg': 'value could not be parsed to a boolean', 'type': 'type_error.bool'}]}
+    #Task2
+    resp = client.post("/task", json={})
+    _assert(response = resp, status_code = 200)
+    #Check if task2 created
+    _assert(response = client.get('/task/'+ resp.json()), status_code = 200, expected_body = responses['example_task_empty'])
 
+    #Task3
+    resp = client.post("/task",json=responses['example_task2'])
+    _assert(response = resp, status_code = 200)
+    #Check if task3 created
+    _assert(response = client.get('/task/'+ resp.json()), status_code = 200, expected_body = responses['example_task2'])
 
-def test_write_ok_task():
-    assert client.post("/task", json={"description": "test","completed": True}).status_code == 200
-    assert client.post("/task", json={}).status_code == 200
-    assert client.post("/task", json={"description": "test","completed": False}).status_code == 200
 
 #Get task by uuid
 def test_read_task_non_uuid():
-    response = client.get('/task/a')
-    assert response.status_code == 422
-    assert response.json() == {"detail":[{"loc":["path","uuid_"],"msg":"value is not a valid uuid","type":"type_error.uuid"}]}
-
+    _assert(response = client.get('/task/a'), status_code = 422, expected_body = responses['invalid_uuid'])
 
 def test_read_task_uuid():
-    #Non correct uuid
-    response = client.get('/task/00000000-0000-0000-0000-000000000000')
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Task not found"}
+    #Not found uuid
+    _assert(response = client.get('/task/00000000-0000-0000-0000-000000000000'), status_code = 404, expected_body = responses['task_not_found'])
 
-    #Correct uuid
-    uuid = client.post("/task", json={"description": "test","completed": True}).json()
-    assert client.get('/task/' + uuid).status_code == 200
-    
+    #Found uuid
+    uuid = client.post("/task", json=responses['example_task']).json()
+    _assert(response = client.get('/task/' + uuid), status_code = 200)
 
 #Put update task
 def test_replace_task_non_uuid():
-    response = client.put('/task/a', json={"description": "test", "completed": True})
-    assert response.status_code == 422
-    assert response.json() == {"detail":[{"loc":["path","uuid_"],"msg":"value is not a valid uuid","type":"type_error.uuid"}]}
+    _assert(response = client.put('/task/a', json=responses['example_task']), status_code = 422, expected_body = responses['invalid_uuid'])
 
 def test_replace_task_uuid():
-    uuid = client.post("/task", json={"description": "test","completed": True}).json()
-    response = client.put('/task/'+uuid, json={"description": "test", "completed": True})
-    assert response.status_code == 200
+    uuid = client.post("/task", json=responses['example_task']).json()
+    _assert(response = client.put('/task/'+ uuid, json=responses['task_new']), status_code = 200)
 
-#dont put body key
-#test bad boolean
-# def test_replace_bad_task():
-#     uuid = client.post("/task", json={"description": "test","completed": True}).json()
-
-#     response = client.put('/task/'+uuid, json={"description": "test", "completed": "a"})
-#     assert response.status_code == 422
-#     assert response.json() == {'detail': [{'loc': ['body', 'item', 'completed'], 'msg': 'value could not be parsed to a boolean', 'type': 'type_error.bool'}]}
-
+    #Check if task replaced
+    _assert(response = client.get('/task/'+ uuid), status_code = 200, expected_body = responses["task_new"])
 
 #Delete task
 def test_delete_task_non_uuid():
-    response = client.delete("/task/a")
-
-    assert response.status_code == 422
-    assert response.json() == {"detail":[{"loc":["path","uuid_"],"msg":"value is not a valid uuid","type":"type_error.uuid"}]}
-
+    _assert(response = client.delete("/task/a"), status_code = 422, expected_body = responses['invalid_uuid'])
 
 def test_delete_task_uuid():
-    uuid = client.post("/task", json={"description": "test","completed": True}).json()
+    uuid = client.post("/task", json=responses['example_task']).json()
 
     #Task exists
-    assert client.delete('/task/'+uuid).status_code == 200
+    _assert(response = client.delete('/task/'+ uuid), status_code = 200)
+    #Check if task was deleted
+    _assert(response = client.get('/task/'+ uuid), status_code = 404, expected_body = responses["task_not_found"])
 
     #Task not found
-    response = client.delete('/task/00000000-0000-0000-0000-000000000000')
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Task not found"}
-
+    _assert(response = client.delete('/task/00000000-0000-0000-0000-000000000000'), status_code = 404, expected_body = responses["task_not_found"])
 
 #Alters a task
 def test_patch_task_non_uuid():
-    response = client.patch("/task/a", json={"description": "test","completed": True})
-
-    assert response.status_code == 422
-    assert response.json() == {"detail":[{"loc":["path","uuid_"],"msg":"value is not a valid uuid","type":"type_error.uuid"}]}
-
+    _assert(response = client.patch("/task/a", json=responses["example_task"]), status_code = 422, expected_body = responses["invalid_uuid"])
 
 def test_patch_task_uuid():
-    uuid = client.post("/task", json={"description": "test","completed": True}).json()
+    uuid = client.post("/task", json=responses['example_task']).json()
 
     #Task exists
-    assert client.patch('/task/'+uuid, json={"description": "teste","completed": True}).status_code == 200
+    _assert(response = client.patch('/task/'+ uuid, json=responses['task_new']), status_code = 200)
+
+    #Check if task was updated
+    _assert(response = client.get('/task/'+ uuid), expected_body = responses["task_new"])
 
     #Task not found
-    response = client.patch('/task/00000000-0000-0000-0000-000000000000', json={"description": "teste","completed": True})
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Task not found"}
-
-#dont put body, key
-#test bad boolean
-#check uuid
+    _assert(response = client.patch('/task/00000000-0000-0000-0000-000000000000', json=responses["example_task"]), status_code = 404, expected_body = responses["task_not_found"])
