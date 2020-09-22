@@ -28,9 +28,23 @@ def test_read_main_returns_not_found():
 def test_read_non_bool_task():
     _assert(response = client.get('/task?completed=a'), status_code = 422, expected_body = responses['bool_error'])
 
+#Get tasks based on parameter 'completed'
 def test_read_bool_task():
-    _assert(status_code = 200, response = client.get('/task?completed=True'))
-    _assert(status_code = 200, response = client.get('/task?completed=False'))
+    #Add completed task to test
+    resp_true = client.post("/task", json=responses['example_task']).json()
+    #Add not completed task to test
+    resp_false = client.post("/task", json=responses['example_task2']).json()
+
+    #Building response based on boolean
+    dict_true = dict()
+    dict_false = dict()
+
+    dict_true[resp_true] = responses['example_task']
+    dict_false[resp_false] = responses['example_task2']
+
+    #Test if getting based on boolean
+    _assert(status_code = 200, response = client.get('/task?completed=True'), expected_body=dict_true)
+    _assert(status_code = 200, response = client.get('/task?completed=False'), expected_body=dict_false)
 
 #Post tasks bool
 def test_write_non_task():
@@ -42,7 +56,7 @@ def test_write_task():
     _assert(response = resp, status_code = 200)
     #Check if task created
     _assert(response = client.get('/task/'+ resp.json()), status_code = 200, expected_body = responses['example_task'])
-
+    
     #Task2
     resp = client.post("/task", json={})
     _assert(response = resp, status_code = 200)
