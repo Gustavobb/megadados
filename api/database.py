@@ -1,4 +1,5 @@
 import uuid
+from .models import Task
 
 class DBSession:
     tasks = {}
