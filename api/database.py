@@ -27,7 +27,6 @@ class DBSession:
         update_data = item.dict(exclude_unset=True)
         self.tasks[uuid_] = self.tasks[uuid_].copy(update=update_data)
 
-
     def remove_task(self, uuid_):
         del self.tasks[uuid_]
 
