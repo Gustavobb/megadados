@@ -94,7 +94,7 @@ class DBSession:
 
     ###### tasks
     def read_tasks(self, completed: bool = None):
-        query = 'SELECT BIN_TO_UUID(uuid), description, completed, name FROM tasks INNER JOIN users ON user_uuid = users.uuid_'
+        query = 'SELECT BIN_TO_UUID(uuid), description, completed, BIN_TO_UUID(user_uuid) FROM tasks'
         if completed is not None:
             query += ' WHERE completed = '
             if completed:
@@ -134,9 +134,8 @@ class DBSession:
         with self.connection.cursor() as cursor:
             cursor.execute(
                 '''
-                SELECT description, completed, name
+                SELECT description, completed, BIN_TO_UUID(user_uuid)
                 FROM tasks
-                INNER JOIN users ON user_uuid = users.uuid_
                 WHERE uuid = UUID_TO_BIN(%s)
                 ''',
                 (str(uuid_), ),
@@ -152,7 +151,7 @@ class DBSession:
         with self.connection.cursor() as cursor:
             cursor.execute(
                 '''
-                UPDATE tasks SET description=%s, completed=%s, user=UUID_TO_BIN(%s)
+                UPDATE tasks SET description=%s, completed=%s, user_uuid=UUID_TO_BIN(%s)
                 WHERE uuid=UUID_TO_BIN(%s)
                 ''',
                 (item.description, item.completed, item.user, str(uuid_)),
